@@ -1,0 +1,104 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  lint:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest]
+        python-version: ['3.7', '3.8', '3.9', '3.10']
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install and upgrade PIP
+      run: python -m pip install --upgrade pip
+
+    - name: Install Pylint
+      run: pip install pylint==2.4.4
+
+    - name: Lint files
+      run: pylint felips_counter
+
+  unit_tests:
+    needs: lint
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest]
+        python-version: ['3.7', '3.8', '3.9', '3.10']
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Run unit tests
+      run: python -m unittest
+
+  check_build:
+    needs: unit_tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ['3.7']
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install and upgrade PIP
+        run: python -m pip install --upgrade pip
+
+      - name: Install build packages
+        run: pip install setuptools build wheel twine
+
+      - name: Build project
+        run: python -m build
+
+      - name: Check build with Twine
+        run: python -m twine check dist/*
+
+  publish:
+    needs: check_build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ['3.7']
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install and upgrade PIP
+        run: python -m pip install --upgrade pip
+
+      - name: Install build packages
+        run: pip install setuptools build wheel twine
+
+      - name: Build project
+        run: python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
